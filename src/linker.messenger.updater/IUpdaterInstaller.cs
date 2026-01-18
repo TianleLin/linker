@@ -1,5 +1,6 @@
 ﻿using linker.libs;
 using System.Buffers;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -146,11 +147,41 @@ namespace linker.messenger.updater
             {
             }
 
-            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            if (OperatingSystem.IsLinux())
             {
                 try
                 {
                     File.SetUnixFileMode("./linker", UnixFileMode.GroupExecute | UnixFileMode.OtherExecute | UnixFileMode.UserExecute);
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+            if (OperatingSystem.IsMacOS())
+            {
+                try
+                {
+                    // macOS requires read permission to load executables (755: rwxr-xr-x)
+                    File.SetUnixFileMode("./linker", 
+                        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                        UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                        UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+                }
+                catch (Exception)
+                {
+                }
+
+                // macOS requires ad-hoc code signing for downloaded executables
+                try
+                {
+                    using var process = new Process();
+                    process.StartInfo.FileName = "/usr/bin/codesign";
+                    process.StartInfo.Arguments = "--force --deep -s - ./linker";
+                    process.StartInfo.UseShellExecute = false;
+                    process.StartInfo.CreateNoWindow = true;
+                    process.Start();
+                    process.WaitForExit(10000); // 10 seconds timeout
                 }
                 catch (Exception)
                 {
